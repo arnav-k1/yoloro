@@ -1,36 +1,64 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# yoloro
 
-## Getting Started
+Flip through YouTube like it's cable. Arrow keys (or swipe on mobile) change
+the "channel" — a random mix, a topic (gaming, music, sports...), or a
+specific creator — and land you mid-video on something new. Auto-advance can
+flip channels on a timer, like doomscrolling but for long-form video.
 
-First, run the development server:
+## Controls
+
+- **↑ / →** — next channel · **↓ / ←** — previous channel
+- **Space** — pause (also pauses the auto-advance countdown)
+- **Swipe up/down** on touch devices
+- Gear icon — settings: auto-advance interval, mute, visual style (retro CRT
+  or modern), and your channel lineup (add presets or a custom topic/creator)
+
+## Getting started
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000 (or whatever port the terminal prints — Next.js
+picks the next free one if 3000 is busy).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Live YouTube data (optional)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Without an API key, yoloro runs in **demo mode**: a small curated set of real
+videos so the whole app is testable out of the box (you'll see a "Demo mode"
+banner).
 
-## Learn More
+To pull live videos:
 
-To learn more about Next.js, take a look at the following resources:
+1. Create a project at the [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
+   and enable the **YouTube Data API v3**.
+2. Create an API key.
+3. Copy `.env.local.example` to `.env.local` and paste the key in as
+   `YOUTUBE_API_KEY`.
+4. Restart the dev server.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+The API key is only ever used server-side (in `src/app/api/videos/route.ts`)
+— it's never exposed to the browser.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Deploying to Vercel
 
-## Deploy on Vercel
+1. Push this repo to GitHub (already done if you're reading this from the repo).
+2. Import it at [vercel.com/new](https://vercel.com/new).
+3. Add an environment variable `YOUTUBE_API_KEY` in the Vercel project
+   settings (Production + Preview) if you want live videos there too. Without
+   it, the deployed app runs in demo mode.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## How it's built
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Next.js (App Router) + TypeScript + Tailwind CSS
+- `src/app/api/videos/route.ts` — server route that calls the YouTube Data
+  API (search for topic/random channels, uploads-playlist lookup for creator
+  channels), with a demo-mode fallback in `src/lib/mockVideos.ts`
+- `src/hooks/useChannelSurfing.ts` — per-channel video queues, arrow-key/swipe
+  navigation, and the auto-advance countdown
+- `src/context/SettingsContext.tsx` — settings persisted to `localStorage`
+  (channel lineup, auto-advance interval, mute, visual style)
+- `src/components/Player.tsx` — wraps the YouTube IFrame Player API; the
+  video surface is intentionally click-through (no native controls) so
+  keyboard shortcuts never lose focus to the embedded player
