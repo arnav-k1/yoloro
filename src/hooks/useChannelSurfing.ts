@@ -34,6 +34,10 @@ export function useChannelSurfing() {
   const [paused, setPaused] = useState(false);
   const [timeLeft, setTimeLeft] = useState(intervalSeconds);
   const [flipToken, setFlipToken] = useState(0);
+  // Bumped on every next()/prev(), independent of whether the resulting channel id actually
+  // changes — with a single-channel lineup, index cycles 0 -> 0 and channel.id never changes,
+  // so relying on channel?.id alone would make arrow keys do nothing.
+  const [surfToken, setSurfToken] = useState(0);
 
   const queuesRef = useRef<Map<string, ChannelQueue>>(new Map());
   const safeChannelIndex = Math.min(channelIndex, Math.max(0, channels.length - 1));
@@ -81,14 +85,16 @@ export function useChannelSurfing() {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch + swap the video whenever the active channel changes
     if (channel) loadChannel(channel);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [channel?.id]);
+  }, [channel?.id, surfToken]);
 
   const next = useCallback(() => {
     setChannelIndex((i) => (channels.length ? (i + 1) % channels.length : 0));
+    setSurfToken((t) => t + 1);
   }, [channels.length]);
 
   const prev = useCallback(() => {
     setChannelIndex((i) => (channels.length ? (i - 1 + channels.length) % channels.length : 0));
+    setSurfToken((t) => t + 1);
   }, [channels.length]);
 
   const reroll = useCallback(() => {
