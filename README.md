@@ -11,8 +11,9 @@ flip channels on a timer, like doomscrolling but for long-form video.
 - **Space** — pause (also pauses the auto-advance countdown)
 - **Swipe up/down** on touch devices
 - Gear icon — settings: auto-advance interval, mute, visual style (retro CRT
-  or modern), a min/max view-count filter, and your channel lineup (add
-  presets or a custom topic/creator)
+  or modern), a min/max view-count filter, whether to include YouTube Shorts,
+  a max video length cap, and your channel lineup (add presets or a custom
+  topic/creator)
 
 ## Getting started
 
@@ -55,9 +56,10 @@ The API key is only ever used server-side (in `src/app/api/videos/route.ts`)
 - Next.js (App Router) + TypeScript + Tailwind CSS
 - `src/app/api/videos/route.ts` — server route that calls the YouTube Data
   API (search for topic/random channels, a view-sorted channel search for
-  creator channels), applies the optional min/max view-count filter, and
-  falls back to a curated demo set in `src/lib/mockVideos.ts` when there's no
-  API key or nothing matches the filter
+  creator channels), applies the optional view-count/Shorts/max-length
+  filters (cascading back to looser results rather than ever returning
+  nothing), and falls back to a curated demo set in `src/lib/mockVideos.ts`
+  when there's no API key
 - `src/hooks/useChannelSurfing.ts` — per-channel video queues, arrow-key/swipe
   navigation, and the auto-advance countdown
 - `src/context/SettingsContext.tsx` — settings persisted to `localStorage`

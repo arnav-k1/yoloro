@@ -15,6 +15,7 @@ export interface VideoItem {
   channelTitle: string;
   thumbnail: string;
   viewCount?: number;
+  durationSeconds?: number;
 }
 
 export type VisualStyle = "retro" | "modern";
@@ -25,6 +26,11 @@ export interface ViewFilter {
   max: number;
 }
 
+export interface DurationFilter {
+  enabled: boolean;
+  maxMinutes: number;
+}
+
 export interface Settings {
   autoAdvance: boolean;
   intervalSeconds: number;
@@ -32,4 +38,6 @@ export interface Settings {
   muted: boolean;
   channels: Channel[];
   viewFilter: ViewFilter;
+  includeShorts: boolean;
+  durationFilter: DurationFilter;
 }

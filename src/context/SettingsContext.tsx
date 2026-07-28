@@ -21,6 +21,8 @@ const DEFAULT_SETTINGS: Settings = {
   muted: true,
   channels: defaultSettingsChannels(),
   viewFilter: { enabled: true, min: 30_000, max: 2_000_000 },
+  includeShorts: false,
+  durationFilter: { enabled: false, maxMinutes: 60 },
 };
 
 interface SettingsContextValue extends Settings {
@@ -33,6 +35,9 @@ interface SettingsContextValue extends Settings {
   setViewFilterEnabled: (value: boolean) => void;
   setViewMin: (value: number) => void;
   setViewMax: (value: number) => void;
+  setIncludeShorts: (value: boolean) => void;
+  setDurationFilterEnabled: (value: boolean) => void;
+  setMaxDurationMinutes: (value: number) => void;
   hydrated: boolean;
 }
 
@@ -116,6 +121,21 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const setIncludeShorts = useCallback((value: boolean) => {
+    setSettings((s) => ({ ...s, includeShorts: value }));
+  }, []);
+
+  const setDurationFilterEnabled = useCallback((value: boolean) => {
+    setSettings((s) => ({ ...s, durationFilter: { ...s.durationFilter, enabled: value } }));
+  }, []);
+
+  const setMaxDurationMinutes = useCallback((value: number) => {
+    setSettings((s) => ({
+      ...s,
+      durationFilter: { ...s.durationFilter, maxMinutes: Math.max(1, value) },
+    }));
+  }, []);
+
   const value = useMemo<SettingsContextValue>(
     () => ({
       ...settings,
@@ -128,6 +148,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       setViewFilterEnabled,
       setViewMin,
       setViewMax,
+      setIncludeShorts,
+      setDurationFilterEnabled,
+      setMaxDurationMinutes,
       hydrated,
     }),
     [
@@ -141,6 +164,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       setViewFilterEnabled,
       setViewMin,
       setViewMax,
+      setIncludeShorts,
+      setDurationFilterEnabled,
+      setMaxDurationMinutes,
       hydrated,
     ]
   );

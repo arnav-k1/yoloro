@@ -3,6 +3,9 @@ import { hasApiKey, fetchRandomVideos, fetchTopicVideos, fetchCreatorVideos } fr
 import { mockPoolForQuery, mockRandomPool } from "@/lib/mockVideos";
 import { VideoItem } from "@/lib/types";
 
+// YouTube's current Shorts eligibility cutoff (raised from 60s to 3 minutes in 2024).
+const SHORTS_MAX_SECONDS = 180;
+
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
@@ -12,18 +15,42 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-/** Keeps videos with a view count in [min, max]. Falls back to the unfiltered list if that
- *  would leave nothing to play — a filter that empties the channel is worse than one that's
- *  slightly too loose. Videos with no known view count (shouldn't normally happen) pass through. */
-function filterByViews(videos: VideoItem[], min: number | null, max: number | null): VideoItem[] {
-  if (min === null && max === null) return videos;
-  const filtered = videos.filter((v) => {
-    if (v.viewCount === undefined) return true;
-    if (min !== null && v.viewCount < min) return false;
-    if (max !== null && v.viewCount > max) return false;
-    return true;
-  });
-  return filtered.length > 0 ? filtered : videos;
+interface FilterOptions {
+  viewMin: number | null;
+  viewMax: number | null;
+  includeShorts: boolean;
+  maxDurationSeconds: number | null;
+}
+
+function matchesViews(v: VideoItem, { viewMin, viewMax }: FilterOptions): boolean {
+  if (viewMin === null && viewMax === null) return true;
+  if (v.viewCount === undefined) return true;
+  if (viewMin !== null && v.viewCount < viewMin) return false;
+  if (viewMax !== null && v.viewCount > viewMax) return false;
+  return true;
+}
+
+function matchesDuration(v: VideoItem, { includeShorts, maxDurationSeconds }: FilterOptions): boolean {
+  if (v.durationSeconds === undefined) return true;
+  if (!includeShorts && v.durationSeconds < SHORTS_MAX_SECONDS) return false;
+  if (maxDurationSeconds !== null && v.durationSeconds > maxDurationSeconds) return false;
+  return true;
+}
+
+/**
+ * Applies both filters, but degrades gracefully: a filter combination that empties the channel
+ * is worse than one that's slightly too loose, so this falls back from "both filters" to
+ * "view filter only" to "duration filter only" to "everything" rather than ever returning zero
+ * candidates (the caller already has its own unfiltered-mock fallback behind this one).
+ */
+function filterVideos(videos: VideoItem[], opts: FilterOptions): VideoItem[] {
+  const both = videos.filter((v) => matchesViews(v, opts) && matchesDuration(v, opts));
+  if (both.length > 0) return both;
+  const viewOnly = videos.filter((v) => matchesViews(v, opts));
+  if (viewOnly.length > 0) return viewOnly;
+  const durationOnly = videos.filter((v) => matchesDuration(v, opts));
+  if (durationOnly.length > 0) return durationOnly;
+  return videos;
 }
 
 export async function GET(req: NextRequest) {
@@ -32,6 +59,10 @@ export async function GET(req: NextRequest) {
   const query = searchParams.get("query") ?? "";
   const viewMin = searchParams.has("viewMin") ? Number(searchParams.get("viewMin")) : null;
   const viewMax = searchParams.has("viewMax") ? Number(searchParams.get("viewMax")) : null;
+  const includeShorts = searchParams.get("includeShorts") === "true";
+  const maxDurationSeconds = searchParams.has("maxDurationMinutes")
+    ? Number(searchParams.get("maxDurationMinutes")) * 60
+    : null;
 
   const demo = !hasApiKey();
   let videos: VideoItem[] = [];
@@ -52,7 +83,7 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  videos = filterByViews(videos, viewMin, viewMax);
+  videos = filterVideos(videos, { viewMin, viewMax, includeShorts, maxDurationSeconds });
 
   return NextResponse.json({ videos, demo });
 }

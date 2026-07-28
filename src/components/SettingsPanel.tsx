@@ -18,6 +18,8 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
     muted,
     channels,
     viewFilter,
+    includeShorts,
+    durationFilter,
     setAutoAdvance,
     setIntervalSeconds,
     setStyle,
@@ -27,6 +29,9 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
     setViewFilterEnabled,
     setViewMin,
     setViewMax,
+    setIncludeShorts,
+    setDurationFilterEnabled,
+    setMaxDurationMinutes,
   } = useSettings();
 
   const [customKind, setCustomKind] = useState<"topic" | "creator">("topic");
@@ -125,6 +130,34 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
               />
               <span className="mt-1 block text-xs text-white/40">{formatViews(viewFilter.max)}</span>
             </label>
+          </div>
+        </section>
+
+        <section className="mb-6">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium">Include YouTube Shorts</span>
+            <Toggle checked={includeShorts} onChange={setIncludeShorts} />
+          </div>
+        </section>
+
+        <section className="mb-6">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium">Limit max video length</span>
+            <Toggle checked={durationFilter.enabled} onChange={setDurationFilterEnabled} />
+          </div>
+          <div className={`mt-3 flex items-center gap-3 ${!durationFilter.enabled ? "opacity-40" : ""}`}>
+            <input
+              type="range"
+              min={1}
+              max={240}
+              value={durationFilter.maxMinutes}
+              disabled={!durationFilter.enabled}
+              onChange={(e) => setMaxDurationMinutes(Number(e.target.value))}
+              className="w-full accent-lime-400 disabled:opacity-40"
+            />
+            <span className="w-16 shrink-0 text-right text-sm tabular-nums text-white/70">
+              {formatMinutes(durationFilter.maxMinutes)}
+            </span>
           </div>
         </section>
 
@@ -240,6 +273,13 @@ function formatViews(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n % 1_000_000 === 0 ? 0 : 1)}M views`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(n % 1_000 === 0 ? 0 : 1)}K views`;
   return `${n} views`;
+}
+
+function formatMinutes(n: number): string {
+  if (n < 60) return `${n}m`;
+  const hours = Math.floor(n / 60);
+  const minutes = n % 60;
+  return minutes === 0 ? `${hours}h` : `${hours}h${minutes}m`;
 }
 
 function Toggle({
