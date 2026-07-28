@@ -26,7 +26,7 @@ function shuffle<T>(arr: T[]): T[] {
 }
 
 export function useChannelSurfing() {
-  const { channels, autoAdvance, intervalSeconds } = useSettings();
+  const { channels, autoAdvance, intervalSeconds, viewFilter } = useSettings();
   const [channelIndex, setChannelIndex] = useState(0);
   const [currentVideo, setCurrentVideo] = useState<VideoItem | null>(null);
   const [loading, setLoading] = useState(true);
@@ -44,23 +44,35 @@ export function useChannelSurfing() {
   const channel = channels[safeChannelIndex];
   const loadTokenRef = useRef(0);
 
-  const ensureQueue = useCallback(async (ch: Channel): Promise<ChannelQueue> => {
-    const existing = queuesRef.current.get(ch.id);
-    if (existing && existing.cursor < existing.videos.length) return existing;
+  const ensureQueue = useCallback(
+    async (ch: Channel): Promise<ChannelQueue> => {
+      // Keying the cache on the filter too means changing min/max naturally fetches a fresh
+      // queue instead of continuing to serve videos picked under the old range.
+      const cacheKey = viewFilter.enabled
+        ? `${ch.id}::${viewFilter.min}-${viewFilter.max}`
+        : `${ch.id}::all`;
+      const existing = queuesRef.current.get(cacheKey);
+      if (existing && existing.cursor < existing.videos.length) return existing;
 
-    const { kind, query } = buildQueryParams(ch);
-    const params = new URLSearchParams({ kind, query });
-    const res = await fetch(`/api/videos?${params.toString()}`);
-    const data = await res.json();
-    setDemo(Boolean(data.demo));
+      const { kind, query } = buildQueryParams(ch);
+      const params = new URLSearchParams({ kind, query });
+      if (viewFilter.enabled) {
+        params.set("viewMin", String(viewFilter.min));
+        params.set("viewMax", String(viewFilter.max));
+      }
+      const res = await fetch(`/api/videos?${params.toString()}`);
+      const data = await res.json();
+      setDemo(Boolean(data.demo));
 
-    const seen = existing?.seen ?? new Set<string>();
-    const fresh: VideoItem[] = shuffle((data.videos ?? []) as VideoItem[]);
-    const reordered = [...fresh.filter((v) => !seen.has(v.id)), ...fresh.filter((v) => seen.has(v.id))];
-    const queue: ChannelQueue = { videos: reordered.length ? reordered : fresh, seen, cursor: 0 };
-    queuesRef.current.set(ch.id, queue);
-    return queue;
-  }, []);
+      const seen = existing?.seen ?? new Set<string>();
+      const fresh: VideoItem[] = shuffle((data.videos ?? []) as VideoItem[]);
+      const reordered = [...fresh.filter((v) => !seen.has(v.id)), ...fresh.filter((v) => seen.has(v.id))];
+      const queue: ChannelQueue = { videos: reordered.length ? reordered : fresh, seen, cursor: 0 };
+      queuesRef.current.set(cacheKey, queue);
+      return queue;
+    },
+    [viewFilter.enabled, viewFilter.min, viewFilter.max]
+  );
 
   const loadChannel = useCallback(
     async (ch: Channel) => {
@@ -82,10 +94,10 @@ export function useChannelSurfing() {
   );
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch + swap the video whenever the active channel changes
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- fetch + swap the video whenever the active channel or view filter changes
     if (channel) loadChannel(channel);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [channel?.id, surfToken]);
+  }, [channel?.id, surfToken, viewFilter.enabled, viewFilter.min, viewFilter.max]);
 
   const next = useCallback(() => {
     setChannelIndex((i) => (channels.length ? (i + 1) % channels.length : 0));

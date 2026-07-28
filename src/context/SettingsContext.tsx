@@ -20,6 +20,7 @@ const DEFAULT_SETTINGS: Settings = {
   style: "retro",
   muted: true,
   channels: defaultSettingsChannels(),
+  viewFilter: { enabled: true, min: 30_000, max: 2_000_000 },
 };
 
 interface SettingsContextValue extends Settings {
@@ -29,6 +30,9 @@ interface SettingsContextValue extends Settings {
   setMuted: (value: boolean) => void;
   addChannel: (channel: Channel) => void;
   removeChannel: (id: string) => void;
+  setViewFilterEnabled: (value: boolean) => void;
+  setViewMin: (value: number) => void;
+  setViewMax: (value: number) => void;
   hydrated: boolean;
 }
 
@@ -94,6 +98,24 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const setViewFilterEnabled = useCallback((value: boolean) => {
+    setSettings((s) => ({ ...s, viewFilter: { ...s.viewFilter, enabled: value } }));
+  }, []);
+
+  const setViewMin = useCallback((value: number) => {
+    setSettings((s) => {
+      const min = Math.max(0, value);
+      return { ...s, viewFilter: { ...s.viewFilter, min, max: Math.max(min, s.viewFilter.max) } };
+    });
+  }, []);
+
+  const setViewMax = useCallback((value: number) => {
+    setSettings((s) => {
+      const max = Math.max(0, value);
+      return { ...s, viewFilter: { ...s.viewFilter, max, min: Math.min(max, s.viewFilter.min) } };
+    });
+  }, []);
+
   const value = useMemo<SettingsContextValue>(
     () => ({
       ...settings,
@@ -103,9 +125,24 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       setMuted,
       addChannel,
       removeChannel,
+      setViewFilterEnabled,
+      setViewMin,
+      setViewMax,
       hydrated,
     }),
-    [settings, setAutoAdvance, setIntervalSeconds, setStyle, setMuted, addChannel, removeChannel, hydrated]
+    [
+      settings,
+      setAutoAdvance,
+      setIntervalSeconds,
+      setStyle,
+      setMuted,
+      addChannel,
+      removeChannel,
+      setViewFilterEnabled,
+      setViewMin,
+      setViewMax,
+      hydrated,
+    ]
   );
 
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;

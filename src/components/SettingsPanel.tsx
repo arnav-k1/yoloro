@@ -17,12 +17,16 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
     style,
     muted,
     channels,
+    viewFilter,
     setAutoAdvance,
     setIntervalSeconds,
     setStyle,
     setMuted,
     addChannel,
     removeChannel,
+    setViewFilterEnabled,
+    setViewMin,
+    setViewMax,
   } = useSettings();
 
   const [customKind, setCustomKind] = useState<"topic" | "creator">("topic");
@@ -86,6 +90,41 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium">Muted</span>
             <Toggle checked={muted} onChange={setMuted} />
+          </div>
+        </section>
+
+        <section className="mb-6">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium">Filter by view count</span>
+            <Toggle checked={viewFilter.enabled} onChange={setViewFilterEnabled} />
+          </div>
+          <div className={`mt-3 grid grid-cols-2 gap-3 ${!viewFilter.enabled ? "opacity-40" : ""}`}>
+            <label className="block">
+              <span className="mb-1 block text-xs text-white/50">Min views</span>
+              <input
+                type="number"
+                min={0}
+                step={1000}
+                value={viewFilter.min}
+                disabled={!viewFilter.enabled}
+                onChange={(e) => setViewMin(Number(e.target.value) || 0)}
+                className="w-full rounded-md bg-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400 disabled:cursor-not-allowed"
+              />
+              <span className="mt-1 block text-xs text-white/40">{formatViews(viewFilter.min)}</span>
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs text-white/50">Max views</span>
+              <input
+                type="number"
+                min={0}
+                step={1000}
+                value={viewFilter.max}
+                disabled={!viewFilter.enabled}
+                onChange={(e) => setViewMax(Number(e.target.value) || 0)}
+                className="w-full rounded-md bg-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400 disabled:cursor-not-allowed"
+              />
+              <span className="mt-1 block text-xs text-white/40">{formatViews(viewFilter.max)}</span>
+            </label>
           </div>
         </section>
 
@@ -195,6 +234,12 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
       </div>
     </div>
   );
+}
+
+function formatViews(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n % 1_000_000 === 0 ? 0 : 1)}M views`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(n % 1_000 === 0 ? 0 : 1)}K views`;
+  return `${n} views`;
 }
 
 function Toggle({

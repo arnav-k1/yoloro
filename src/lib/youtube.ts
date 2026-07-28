@@ -24,27 +24,13 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-async function searchVideos(query: string, key: string): Promise<VideoItem[]> {
-  const order = pick(["relevance", "date", "viewCount"]);
-  const params = new URLSearchParams({
-    part: "snippet",
-    type: "video",
-    videoDuration: "long",
-    safeSearch: "moderate",
-    maxResults: "25",
-    order,
-    q: query,
-    key,
-  });
-  const res = await fetch(`${API_BASE}/search?${params.toString()}`, {
-    next: { revalidate: 0 },
-  });
-  if (!res.ok) throw new Error(`YouTube search failed: ${res.status}`);
-  const data = await res.json();
-  const items = (data.items ?? []) as Array<{
+function parseSearchItems(data: {
+  items?: Array<{
     id: { videoId: string };
     snippet: { title: string; channelTitle: string; thumbnails: Record<string, { url: string }> };
   }>;
+}): VideoItem[] {
+  const items = data.items ?? [];
   return items
     .filter((item) => item.id?.videoId)
     .map((item) => ({
@@ -54,6 +40,49 @@ async function searchVideos(query: string, key: string): Promise<VideoItem[]> {
       thumbnail:
         item.snippet.thumbnails?.high?.url ?? item.snippet.thumbnails?.default?.url ?? "",
     }));
+}
+
+async function searchVideos(query: string, key: string): Promise<VideoItem[]> {
+  // order=relevance (not date/viewCount): "date" surfaces brand-new uploads with near-zero
+  // views, which starves the view-count filter of candidates; "viewCount" skews toward
+  // all-time mega-viral videos. Relevance gives the most natural spread across view counts.
+  // maxResults=50 (the API max) is quota-free — search.list costs a flat 100 units regardless
+  // of maxResults — and gives the view-count filter more candidates to work with.
+  const params = new URLSearchParams({
+    part: "snippet",
+    type: "video",
+    videoDuration: "long",
+    safeSearch: "moderate",
+    maxResults: "50",
+    order: "relevance",
+    q: query,
+    key,
+  });
+  const res = await fetch(`${API_BASE}/search?${params.toString()}`, {
+    next: { revalidate: 0 },
+  });
+  if (!res.ok) throw new Error(`YouTube search failed: ${res.status}`);
+  return parseSearchItems(await res.json());
+}
+
+/** Fills in real view counts via videos.list (cheap: 1 quota unit, vs. 100 for a search). */
+async function attachViewCounts(videos: VideoItem[], key: string): Promise<VideoItem[]> {
+  if (videos.length === 0) return videos;
+  const params = new URLSearchParams({
+    part: "statistics",
+    id: videos.map((v) => v.id).join(","),
+    key,
+  });
+  const res = await fetch(`${API_BASE}/videos?${params.toString()}`);
+  if (!res.ok) return videos;
+  const data = await res.json();
+  const items = (data.items ?? []) as Array<{ id: string; statistics?: { viewCount?: string } }>;
+  const viewCountById = new Map(
+    items
+      .filter((item) => item.statistics?.viewCount !== undefined)
+      .map((item) => [item.id, Number(item.statistics!.viewCount)])
+  );
+  return videos.map((v) => ({ ...v, viewCount: viewCountById.get(v.id) }));
 }
 
 async function resolveChannelId(query: string, key: string): Promise<string | null> {
@@ -84,40 +113,20 @@ async function creatorVideos(query: string, key: string): Promise<VideoItem[]> {
   const channelId = await resolveChannelId(query, key);
   if (!channelId) return [];
 
-  const chParams = new URLSearchParams({ part: "contentDetails", id: channelId, key });
-  const chRes = await fetch(`${API_BASE}/channels?${chParams.toString()}`);
-  if (!chRes.ok) return [];
-  const chData = await chRes.json();
-  const uploadsPlaylistId =
-    chData.items?.[0]?.contentDetails?.relatedPlaylists?.uploads;
-  if (!uploadsPlaylistId) return [];
-
-  const plParams = new URLSearchParams({
+  // order=viewCount (not the uploads playlist's chronological order): a creator's most recent
+  // uploads are almost always too fresh to have accumulated many views, which would starve the
+  // view-count filter the same way "date" order does for topic search.
+  const params = new URLSearchParams({
     part: "snippet",
-    playlistId: uploadsPlaylistId,
-    maxResults: "25",
+    type: "video",
+    channelId,
+    order: "viewCount",
+    maxResults: "50",
     key,
   });
-  const plRes = await fetch(`${API_BASE}/playlistItems?${plParams.toString()}`);
-  if (!plRes.ok) return [];
-  const plData = await plRes.json();
-  const items = (plData.items ?? []) as Array<{
-    snippet: {
-      title: string;
-      channelTitle: string;
-      resourceId: { videoId: string };
-      thumbnails: Record<string, { url: string }>;
-    };
-  }>;
-  return items
-    .filter((item) => item.snippet?.resourceId?.videoId)
-    .map((item) => ({
-      id: item.snippet.resourceId.videoId,
-      title: item.snippet.title,
-      channelTitle: item.snippet.channelTitle,
-      thumbnail:
-        item.snippet.thumbnails?.high?.url ?? item.snippet.thumbnails?.default?.url ?? "",
-    }));
+  const res = await fetch(`${API_BASE}/search?${params.toString()}`);
+  if (!res.ok) return [];
+  return parseSearchItems(await res.json());
 }
 
 export async function fetchRandomVideos(): Promise<VideoItem[]> {
@@ -125,19 +134,19 @@ export async function fetchRandomVideos(): Promise<VideoItem[]> {
   if (!key) return [];
   const topic = pick(RANDOM_SEED_TOPICS);
   const videos = await searchVideos(topic, key);
-  return shuffle(videos);
+  return shuffle(await attachViewCounts(videos, key));
 }
 
 export async function fetchTopicVideos(query: string): Promise<VideoItem[]> {
   const key = apiKey();
   if (!key) return [];
   const videos = await searchVideos(query, key);
-  return shuffle(videos);
+  return shuffle(await attachViewCounts(videos, key));
 }
 
 export async function fetchCreatorVideos(query: string): Promise<VideoItem[]> {
   const key = apiKey();
   if (!key) return [];
   const videos = await creatorVideos(query, key);
-  return shuffle(videos);
+  return shuffle(await attachViewCounts(videos, key));
 }
