@@ -20,6 +20,7 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
     viewFilter,
     includeShorts,
     durationFilter,
+    excludeKeywords,
     setAutoAdvance,
     setIntervalSeconds,
     setStyle,
@@ -32,6 +33,7 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
     setIncludeShorts,
     setDurationFilterEnabled,
     setMaxDurationMinutes,
+    setExcludeKeywords,
   } = useSettings();
 
   const [customKind, setCustomKind] = useState<"topic" | "creator">("topic");
@@ -151,6 +153,18 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
               {formatMinutes(durationFilter.maxMinutes)}
             </span>
           </div>
+        </section>
+
+        <section className="mb-6">
+          <span className="mb-2 block text-sm font-medium">Hide videos containing</span>
+          <TextListField
+            values={excludeKeywords}
+            onCommit={setExcludeKeywords}
+            placeholder="e.g. lyrics, official audio"
+          />
+          <span className="mt-1 block text-xs text-white/40">
+            Comma-separated, matched anywhere in the title
+          </span>
         </section>
 
         <section className="mb-6">
@@ -312,6 +326,49 @@ function NumberField({
       onBlur={commit}
       onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
       className="w-full rounded-md bg-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400 disabled:cursor-not-allowed"
+    />
+  );
+}
+
+/** Same buffered-while-typing idea as NumberField, but for a comma-separated list of strings —
+ *  commits (and re-splits into an array) on blur/Enter instead of on every keystroke. */
+function TextListField({
+  values,
+  onCommit,
+  placeholder,
+}: {
+  values: string[];
+  onCommit: (values: string[]) => void;
+  placeholder?: string;
+}) {
+  const [text, setText] = useState(values.join(", "));
+  const [focused, setFocused] = useState(false);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- resync the local text buffer from the committed value, but only while not actively editing
+    if (!focused) setText(values.join(", "));
+  }, [values, focused]);
+
+  const commit = () => {
+    setFocused(false);
+    onCommit(
+      text
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+    );
+  };
+
+  return (
+    <input
+      type="text"
+      value={text}
+      placeholder={placeholder}
+      onFocus={() => setFocused(true)}
+      onChange={(e) => setText(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+      className="w-full rounded-md bg-white/10 px-3 py-2 text-sm placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-lime-400"
     />
   );
 }

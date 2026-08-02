@@ -12,8 +12,8 @@ flip channels on a timer, like doomscrolling but for long-form video.
 - **Swipe up/down** on touch devices
 - Gear icon — settings: auto-advance interval, mute, visual style (retro CRT
   or modern), a min/max view-count filter, whether to include YouTube Shorts,
-  a max video length cap, and your channel lineup (add presets or a custom
-  topic/creator)
+  a max video length cap, a "hide videos containing" keyword list, and your
+  channel lineup (add presets or a custom topic/creator)
 
 ## Getting started
 
@@ -59,13 +59,17 @@ The API key is only ever used server-side (in `src/app/api/videos/route.ts`)
   (cascading back to looser results rather than ever returning nothing),
   falling back to a curated demo set in `src/lib/mockVideos.ts` when there's
   no API key
-- `src/lib/youtube.ts` — Random and the Gaming/Music/Sports presets pull
-  YouTube's real Trending chart (`chart=mostPopular`) — the closest thing to
-  "the algorithm" exposed without OAuth into a user's own watch history.
-  Everything else (Minecraft, Basketball, custom topics) uses keyword search
-  ranked by views-per-day-since-upload, so a fresh, currently-hot video beats
-  a big-number relic from a decade ago; creator channels search sorted by
-  view count instead of the channel's chronological upload order
+- `src/lib/youtube.ts` — Random pulls YouTube's real Trending chart
+  (`chart=mostPopular`) across every standard video category and merges them,
+  so it's an actual cross-category mix rather than whatever one category
+  happens to dominate the overall chart that day. The Gaming/Music/Sports
+  presets pull Trending scoped to their one category. Everything else
+  (Minecraft, Basketball, custom topics) uses keyword search ranked by
+  views-per-day-since-upload, so a fresh, currently-hot video beats a
+  big-number relic from a decade ago. Creator channels try a view-sorted
+  search first and fall back to the channel's uploads playlist — search
+  scoped by `channelId` is a known-flaky YouTube API endpoint that can return
+  as little as a single video for some channels regardless of query shape
 - `src/hooks/useChannelSurfing.ts` — per-channel video queues, arrow-key/swipe
   navigation, and the auto-advance countdown
 - `src/context/SettingsContext.tsx` — settings persisted to `localStorage`

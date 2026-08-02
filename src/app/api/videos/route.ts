@@ -55,6 +55,20 @@ function filterVideos(videos: VideoItem[], opts: FilterOptions): VideoItem[] {
   return videos;
 }
 
+/** Drops videos whose title contains any excluded keyword (case-insensitive). Applied before
+ *  the view/duration cascade, and skipped entirely if it would empty the pool — excluding
+ *  "lyrics" shouldn't leave a channel with nothing to play if that's literally everything
+ *  currently on offer. */
+function excludeByKeywords(videos: VideoItem[], keywords: string[]): VideoItem[] {
+  const needles = keywords.map((k) => k.trim().toLowerCase()).filter(Boolean);
+  if (needles.length === 0) return videos;
+  const filtered = videos.filter((v) => {
+    const title = v.title.toLowerCase();
+    return !needles.some((needle) => title.includes(needle));
+  });
+  return filtered.length > 0 ? filtered : videos;
+}
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const kind = searchParams.get("kind") ?? "random";
@@ -74,6 +88,10 @@ export async function GET(req: NextRequest) {
     !includeShorts && rawMaxDurationSeconds !== null && rawMaxDurationSeconds <= SHORTS_MAX_SECONDS
       ? null
       : rawMaxDurationSeconds;
+  const excludeKeywords = (searchParams.get("exclude") ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
 
   const demo = !hasApiKey();
   let videos: VideoItem[] = [];
@@ -94,6 +112,7 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  videos = excludeByKeywords(videos, excludeKeywords);
   videos = filterVideos(videos, { viewMin, viewMax, includeShorts, maxDurationSeconds });
 
   return NextResponse.json({ videos, demo });

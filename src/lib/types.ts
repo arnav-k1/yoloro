@@ -42,4 +42,6 @@ export interface Settings {
   viewFilter: ViewFilter;
   includeShorts: boolean;
   durationFilter: DurationFilter;
+  /** Videos whose title contains any of these (case-insensitive) are skipped, e.g. "lyrics". */
+  excludeKeywords: string[];
 }

@@ -23,6 +23,7 @@ const DEFAULT_SETTINGS: Settings = {
   viewFilter: { enabled: true, min: 30_000, max: 2_000_000 },
   includeShorts: false,
   durationFilter: { enabled: false, maxMinutes: 60 },
+  excludeKeywords: [],
 };
 
 interface SettingsContextValue extends Settings {
@@ -38,6 +39,7 @@ interface SettingsContextValue extends Settings {
   setIncludeShorts: (value: boolean) => void;
   setDurationFilterEnabled: (value: boolean) => void;
   setMaxDurationMinutes: (value: number) => void;
+  setExcludeKeywords: (keywords: string[]) => void;
   hydrated: boolean;
 }
 
@@ -136,6 +138,10 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
+  const setExcludeKeywords = useCallback((keywords: string[]) => {
+    setSettings((s) => ({ ...s, excludeKeywords: keywords }));
+  }, []);
+
   const value = useMemo<SettingsContextValue>(
     () => ({
       ...settings,
@@ -151,6 +157,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       setIncludeShorts,
       setDurationFilterEnabled,
       setMaxDurationMinutes,
+      setExcludeKeywords,
       hydrated,
     }),
     [
@@ -167,6 +174,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       setIncludeShorts,
       setDurationFilterEnabled,
       setMaxDurationMinutes,
+      setExcludeKeywords,
       hydrated,
     ]
   );

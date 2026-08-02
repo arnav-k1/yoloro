@@ -26,7 +26,8 @@ function shuffle<T>(arr: T[]): T[] {
 }
 
 export function useChannelSurfing() {
-  const { channels, autoAdvance, intervalSeconds, viewFilter, includeShorts, durationFilter } = useSettings();
+  const { channels, autoAdvance, intervalSeconds, viewFilter, includeShorts, durationFilter, excludeKeywords } =
+    useSettings();
   const [channelIndex, setChannelIndex] = useState(0);
   const [currentVideo, setCurrentVideo] = useState<VideoItem | null>(null);
   const [loading, setLoading] = useState(true);
@@ -52,6 +53,7 @@ export function useChannelSurfing() {
         viewFilter.enabled ? `v${viewFilter.min}-${viewFilter.max}` : "v-",
         includeShorts ? "shorts" : "noshorts",
         durationFilter.enabled ? `max${durationFilter.maxMinutes}` : "nomax",
+        excludeKeywords.length > 0 ? `ex${excludeKeywords.join(",")}` : "ex-",
       ].join("|");
       const cacheKey = `${ch.id}::${filterKey}`;
       const existing = queuesRef.current.get(cacheKey);
@@ -67,6 +69,9 @@ export function useChannelSurfing() {
       params.set("includeShorts", String(includeShorts));
       if (durationFilter.enabled) {
         params.set("maxDurationMinutes", String(durationFilter.maxMinutes));
+      }
+      if (excludeKeywords.length > 0) {
+        params.set("exclude", excludeKeywords.join(","));
       }
       const res = await fetch(`/api/videos?${params.toString()}`);
       const data = await res.json();
@@ -84,7 +89,15 @@ export function useChannelSurfing() {
       queuesRef.current.set(cacheKey, queue);
       return queue;
     },
-    [viewFilter.enabled, viewFilter.min, viewFilter.max, includeShorts, durationFilter.enabled, durationFilter.maxMinutes]
+    [
+      viewFilter.enabled,
+      viewFilter.min,
+      viewFilter.max,
+      includeShorts,
+      durationFilter.enabled,
+      durationFilter.maxMinutes,
+      excludeKeywords,
+    ]
   );
 
   const loadChannel = useCallback(
@@ -119,6 +132,7 @@ export function useChannelSurfing() {
     includeShorts,
     durationFilter.enabled,
     durationFilter.maxMinutes,
+    excludeKeywords,
   ]);
 
   const next = useCallback(() => {

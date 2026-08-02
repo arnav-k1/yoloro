@@ -7,6 +7,23 @@ const API_BASE = "https://www.googleapis.com/youtube/v3";
 // same fixed trending list on every flip.
 const TRENDING_REGIONS = ["US", "GB", "CA", "AU"];
 
+// YouTube's standard video category IDs. "Random" samples several of these per fetch and merges
+// them — the overall (no-category) Trending chart is ranked by raw popularity, which means
+// whatever's biggest right now (one viral event, one sport in season) can dominate the whole
+// list; sampling categories directly guarantees an actual cross-category mix every time.
+const RANDOM_CATEGORY_IDS = [
+  "10", // Music
+  "17", // Sports
+  "20", // Gaming
+  "22", // People & Blogs
+  "23", // Comedy
+  "24", // Entertainment
+  "25", // News & Politics
+  "26", // Howto & Style
+  "27", // Education
+  "28", // Science & Technology
+];
+
 function apiKey(): string | undefined {
   return process.env.YOUTUBE_API_KEY;
 }
@@ -118,19 +135,30 @@ function parseVideosListItems(data: {
  *  and a user's own watch history. 1 quota unit (vs. 100 for a search.list call). */
 async function fetchTrendingChart(
   key: string,
-  { categoryId, regionCode }: { categoryId?: string; regionCode: string }
+  { categoryId, regionCode, maxResults = 50 }: { categoryId?: string; regionCode: string; maxResults?: number }
 ): Promise<VideoItem[]> {
   const params = new URLSearchParams({
     part: "snippet,statistics,contentDetails",
     chart: "mostPopular",
     regionCode,
-    maxResults: "50",
+    maxResults: String(maxResults),
     key,
   });
   if (categoryId) params.set("videoCategoryId", categoryId);
   const res = await fetch(`${API_BASE}/videos?${params.toString()}`, { next: { revalidate: 0 } });
   if (!res.ok) return [];
   return parseVideosListItems(await res.json());
+}
+
+/** Merges trending videos across every category for one region, deduped by video id — every
+ *  fetch samples all of them, so no category is ever left out of the mix. */
+async function fetchCrossCategoryTrending(key: string, regionCode: string): Promise<VideoItem[]> {
+  const results = await Promise.all(
+    RANDOM_CATEGORY_IDS.map((categoryId) => fetchTrendingChart(key, { categoryId, regionCode, maxResults: 12 }))
+  );
+  const byId = new Map<string, VideoItem>();
+  for (const video of results.flat()) byId.set(video.id, video);
+  return Array.from(byId.values());
 }
 
 async function runSearch(params: URLSearchParams): Promise<RawVideoItem[]> {
@@ -222,10 +250,7 @@ async function resolveChannelId(query: string, key: string): Promise<string | nu
   return data.items?.[0]?.id?.channelId ?? null;
 }
 
-async function creatorVideos(query: string, key: string): Promise<RawVideoItem[]> {
-  const channelId = await resolveChannelId(query, key);
-  if (!channelId) return [];
-
+async function creatorVideosViaSearch(channelId: string, key: string): Promise<RawVideoItem[]> {
   // order=viewCount (not the uploads playlist's chronological order): a creator's most recent
   // uploads are almost always too fresh to have accumulated many views, which would starve the
   // view-count filter the same way "date" order does for topic search.
@@ -242,14 +267,68 @@ async function creatorVideos(query: string, key: string): Promise<RawVideoItem[]
   return parseSearchItems(await res.json());
 }
 
+async function creatorVideosViaUploadsPlaylist(channelId: string, key: string): Promise<RawVideoItem[]> {
+  const chParams = new URLSearchParams({ part: "contentDetails", id: channelId, key });
+  const chRes = await fetch(`${API_BASE}/channels?${chParams.toString()}`);
+  if (!chRes.ok) return [];
+  const chData = await chRes.json();
+  const uploadsPlaylistId = chData.items?.[0]?.contentDetails?.relatedPlaylists?.uploads;
+  if (!uploadsPlaylistId) return [];
+
+  const plParams = new URLSearchParams({
+    part: "snippet",
+    playlistId: uploadsPlaylistId,
+    maxResults: "50",
+    key,
+  });
+  const plRes = await fetch(`${API_BASE}/playlistItems?${plParams.toString()}`);
+  if (!plRes.ok) return [];
+  const plData = await plRes.json();
+  const items = (plData.items ?? []) as Array<{
+    snippet: {
+      title: string;
+      channelTitle: string;
+      publishedAt?: string;
+      resourceId: { videoId: string };
+      thumbnails: Record<string, { url: string }>;
+    };
+  }>;
+  return items
+    .filter((item) => item.snippet?.resourceId?.videoId)
+    .map((item) => ({
+      id: item.snippet.resourceId.videoId,
+      title: item.snippet.title,
+      channelTitle: item.snippet.channelTitle,
+      publishedAt: item.snippet.publishedAt,
+      thumbnail:
+        item.snippet.thumbnails?.high?.url ?? item.snippet.thumbnails?.default?.url ?? "",
+    }));
+}
+
+async function creatorVideos(query: string, key: string): Promise<RawVideoItem[]> {
+  const channelId = await resolveChannelId(query, key);
+  if (!channelId) return [];
+
+  const viaSearch = await creatorVideosViaSearch(channelId, key);
+  if (viaSearch.length >= 10) return viaSearch;
+
+  // search.list scoped by channelId is a known-flaky endpoint — for some channels (seen on
+  // PewDiePie's, 4600+ uploads) it returns just a single result regardless of order or
+  // maxResults, apparently a backend indexing quirk rather than anything query-shape related.
+  // The uploads-playlist route is far more reliable, at the cost of chronological (not
+  // popularity) ordering — rankByRecentPopularity downstream compensates for that.
+  const viaPlaylist = await creatorVideosViaUploadsPlaylist(channelId, key);
+  return viaPlaylist.length > 0 ? viaPlaylist : viaSearch;
+}
+
 export async function fetchRandomVideos(): Promise<VideoItem[]> {
   const key = apiKey();
   if (!key) return [];
 
-  const trending = await fetchTrendingChart(key, { regionCode: pick(TRENDING_REGIONS) });
+  const trending = await fetchCrossCategoryTrending(key, pick(TRENDING_REGIONS));
   if (trending.length > 0) return shuffle(trending);
 
-  // Fallback if the chart call ever fails: old keyword-search path.
+  // Fallback if every category call fails: old keyword-search path.
   const topic = pick(RANDOM_SEED_TOPICS);
   const videos = await searchVideos(topic, key);
   return rankByRecentPopularity(await attachMetadata(videos, key));
@@ -272,6 +351,5 @@ export async function fetchCreatorVideos(query: string): Promise<VideoItem[]> {
   const key = apiKey();
   if (!key) return [];
   const videos = await creatorVideos(query, key);
-  const withMeta = await attachMetadata(videos, key);
-  return shuffle(withMeta.map(stripPublishedAt));
+  return rankByRecentPopularity(await attachMetadata(videos, key));
 }
