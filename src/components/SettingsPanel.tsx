@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSettings } from "@/context/SettingsContext";
 import { PRESET_CHANNELS } from "@/lib/presets";
 import { Channel } from "@/lib/types";
@@ -106,27 +106,19 @@ export function SettingsPanel({ open, onClose }: SettingsPanelProps) {
           <div className={`mt-3 grid grid-cols-2 gap-3 ${!viewFilter.enabled ? "opacity-40" : ""}`}>
             <label className="block">
               <span className="mb-1 block text-xs text-white/50">Min views</span>
-              <input
-                type="number"
-                min={0}
-                step={1000}
+              <NumberField
                 value={viewFilter.min}
                 disabled={!viewFilter.enabled}
-                onChange={(e) => setViewMin(Number(e.target.value) || 0)}
-                className="w-full rounded-md bg-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400 disabled:cursor-not-allowed"
+                onCommit={setViewMin}
               />
               <span className="mt-1 block text-xs text-white/40">{formatViews(viewFilter.min)}</span>
             </label>
             <label className="block">
               <span className="mb-1 block text-xs text-white/50">Max views</span>
-              <input
-                type="number"
-                min={0}
-                step={1000}
+              <NumberField
                 value={viewFilter.max}
                 disabled={!viewFilter.enabled}
-                onChange={(e) => setViewMax(Number(e.target.value) || 0)}
-                className="w-full rounded-md bg-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400 disabled:cursor-not-allowed"
+                onCommit={setViewMax}
               />
               <span className="mt-1 block text-xs text-white/40">{formatViews(viewFilter.max)}</span>
             </label>
@@ -280,6 +272,48 @@ function formatMinutes(n: number): string {
   const hours = Math.floor(n / 60);
   const minutes = n % 60;
   return minutes === 0 ? `${hours}h` : `${hours}h${minutes}m`;
+}
+
+/** A number input that buffers raw text while focused instead of round-tripping every
+ *  keystroke through the committed numeric value — otherwise clearing the field to type a new
+ *  number snaps to 0 mid-edit (`Number("") || 0`) and corrupts whatever you type next. */
+function NumberField({
+  value,
+  onCommit,
+  disabled,
+}: {
+  value: number;
+  onCommit: (n: number) => void;
+  disabled?: boolean;
+}) {
+  const [text, setText] = useState(String(value));
+  const [focused, setFocused] = useState(false);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- resync the local text buffer from the committed value, but only while not actively editing
+    if (!focused) setText(String(value));
+  }, [value, focused]);
+
+  const commit = () => {
+    setFocused(false);
+    const n = Number(text);
+    onCommit(Number.isFinite(n) && text.trim() !== "" ? n : value);
+  };
+
+  return (
+    <input
+      type="number"
+      min={0}
+      step={1000}
+      value={text}
+      disabled={disabled}
+      onFocus={() => setFocused(true)}
+      onChange={(e) => setText(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+      className="w-full rounded-md bg-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-lime-400 disabled:cursor-not-allowed"
+    />
+  );
 }
 
 function Toggle({

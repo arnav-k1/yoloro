@@ -39,17 +39,19 @@ function matchesDuration(v: VideoItem, { includeShorts, maxDurationSeconds }: Fi
 
 /**
  * Applies both filters, but degrades gracefully: a filter combination that empties the channel
- * is worse than one that's slightly too loose, so this falls back from "both filters" to
- * "view filter only" to "duration filter only" to "everything" rather than ever returning zero
- * candidates (the caller already has its own unfiltered-mock fallback behind this one).
+ * is worse than one that's slightly too loose. Duration/Shorts is treated as the harder
+ * constraint — "don't show Shorts" is a rule, "prefer this view range" is a preference — so the
+ * fallback order is "both" -> "duration only" -> "view only" -> "everything". Falling back to
+ * "view only" first (dropping duration) was the bug: whenever the view range excluded every
+ * long-form candidate, it would happily let Shorts back in as long as they were in range.
  */
 function filterVideos(videos: VideoItem[], opts: FilterOptions): VideoItem[] {
   const both = videos.filter((v) => matchesViews(v, opts) && matchesDuration(v, opts));
   if (both.length > 0) return both;
-  const viewOnly = videos.filter((v) => matchesViews(v, opts));
-  if (viewOnly.length > 0) return viewOnly;
   const durationOnly = videos.filter((v) => matchesDuration(v, opts));
   if (durationOnly.length > 0) return durationOnly;
+  const viewOnly = videos.filter((v) => matchesViews(v, opts));
+  if (viewOnly.length > 0) return viewOnly;
   return videos;
 }
 

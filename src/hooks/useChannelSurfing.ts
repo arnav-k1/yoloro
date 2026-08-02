@@ -72,10 +72,15 @@ export function useChannelSurfing() {
       const data = await res.json();
       setDemo(Boolean(data.demo));
 
-      const seen = existing?.seen ?? new Set<string>();
+      const priorSeen = existing?.seen ?? new Set<string>();
       const fresh: VideoItem[] = shuffle((data.videos ?? []) as VideoItem[]);
-      const reordered = [...fresh.filter((v) => !seen.has(v.id)), ...fresh.filter((v) => seen.has(v.id))];
-      const queue: ChannelQueue = { videos: reordered.length ? reordered : fresh, seen, cursor: 0 };
+      const unseen = fresh.filter((v) => !priorSeen.has(v.id));
+      // If every candidate in this batch has already been shown, the pool is exhausted (common
+      // for trending-chart channels, which barely change between fetches) — start a fresh
+      // "seen" cycle instead of front-loading a queue that's 100% repeats from the first video.
+      const seen = unseen.length > 0 ? priorSeen : new Set<string>();
+      const videos = unseen.length > 0 ? [...unseen, ...fresh.filter((v) => priorSeen.has(v.id))] : fresh;
+      const queue: ChannelQueue = { videos, seen, cursor: 0 };
       queuesRef.current.set(cacheKey, queue);
       return queue;
     },
