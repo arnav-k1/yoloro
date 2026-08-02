@@ -57,6 +57,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const kind = searchParams.get("kind") ?? "random";
   const query = searchParams.get("query") ?? "";
+  const categoryId = searchParams.get("categoryId") ?? undefined;
   const viewMin = searchParams.has("viewMin") ? Number(searchParams.get("viewMin")) : null;
   const viewMax = searchParams.has("viewMax") ? Number(searchParams.get("viewMax")) : null;
   const includeShorts = searchParams.get("includeShorts") === "true";
@@ -73,7 +74,7 @@ export async function GET(req: NextRequest) {
     try {
       if (kind === "random") videos = await fetchRandomVideos();
       else if (kind === "creator") videos = await fetchCreatorVideos(query);
-      else videos = await fetchTopicVideos(query);
+      else videos = await fetchTopicVideos(query, categoryId);
     } catch {
       videos = shuffle(mockRandomPool());
     }

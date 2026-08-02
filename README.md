@@ -55,11 +55,17 @@ The API key is only ever used server-side (in `src/app/api/videos/route.ts`)
 
 - Next.js (App Router) + TypeScript + Tailwind CSS
 - `src/app/api/videos/route.ts` — server route that calls the YouTube Data
-  API (search for topic/random channels, a view-sorted channel search for
-  creator channels), applies the optional view-count/Shorts/max-length
-  filters (cascading back to looser results rather than ever returning
-  nothing), and falls back to a curated demo set in `src/lib/mockVideos.ts`
-  when there's no API key
+  API and applies the optional view-count/Shorts/max-length filters
+  (cascading back to looser results rather than ever returning nothing),
+  falling back to a curated demo set in `src/lib/mockVideos.ts` when there's
+  no API key
+- `src/lib/youtube.ts` — Random and the Gaming/Music/Sports presets pull
+  YouTube's real Trending chart (`chart=mostPopular`) — the closest thing to
+  "the algorithm" exposed without OAuth into a user's own watch history.
+  Everything else (Minecraft, Basketball, custom topics) uses keyword search
+  ranked by views-per-day-since-upload, so a fresh, currently-hot video beats
+  a big-number relic from a decade ago; creator channels search sorted by
+  view count instead of the channel's chronological upload order
 - `src/hooks/useChannelSurfing.ts` — per-channel video queues, arrow-key/swipe
   navigation, and the auto-advance countdown
 - `src/context/SettingsContext.tsx` — settings persisted to `localStorage`

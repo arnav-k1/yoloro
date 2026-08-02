@@ -1,6 +1,8 @@
 export type ChannelSource =
   | { kind: "random" }
-  | { kind: "topic"; query: string }
+  // categoryId: when set, this channel pulls YouTube's real Trending chart for that category
+  // instead of keyword search — much higher hit rate for "stuff people are actually watching."
+  | { kind: "topic"; query: string; categoryId?: string }
   | { kind: "creator"; query: string };
 
 export interface Channel {

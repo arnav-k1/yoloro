@@ -6,13 +6,18 @@ export const RANDOM_CHANNEL: Channel = {
   source: { kind: "random" },
 };
 
-/** Quick-add chips shown in settings. Not active by default (except Random). */
+/**
+ * Quick-add chips shown in settings. Not active by default (except Random).
+ * Gaming/Music/Sports map to real YouTube category IDs, so they pull the actual Trending
+ * chart for that category instead of keyword search. Minecraft/Basketball have no matching
+ * YouTube category, so they stay on (recency + popularity ranked) keyword search.
+ */
 export const PRESET_CHANNELS: Channel[] = [
   RANDOM_CHANNEL,
   {
     id: "gaming",
     label: "Gaming",
-    source: { kind: "topic", query: "gameplay walkthrough let's play" },
+    source: { kind: "topic", query: "gameplay walkthrough let's play", categoryId: "20" },
   },
   {
     id: "minecraft",
@@ -22,12 +27,12 @@ export const PRESET_CHANNELS: Channel[] = [
   {
     id: "music",
     label: "Music",
-    source: { kind: "topic", query: "official music video live performance" },
+    source: { kind: "topic", query: "official music video live performance", categoryId: "10" },
   },
   {
     id: "sports",
     label: "Sports",
-    source: { kind: "topic", query: "sports highlights full game recap" },
+    source: { kind: "topic", query: "sports highlights full game recap", categoryId: "17" },
   },
   {
     id: "basketball",

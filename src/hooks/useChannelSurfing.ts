@@ -10,10 +10,10 @@ interface ChannelQueue {
   cursor: number;
 }
 
-function buildQueryParams(channel: Channel): { kind: string; query: string } {
+function buildQueryParams(channel: Channel): { kind: string; query: string; categoryId?: string } {
   if (channel.source.kind === "random") return { kind: "random", query: "" };
   if (channel.source.kind === "creator") return { kind: "creator", query: channel.source.query };
-  return { kind: "topic", query: channel.source.query };
+  return { kind: "topic", query: channel.source.query, categoryId: channel.source.categoryId };
 }
 
 function shuffle<T>(arr: T[]): T[] {
@@ -57,8 +57,9 @@ export function useChannelSurfing() {
       const existing = queuesRef.current.get(cacheKey);
       if (existing && existing.cursor < existing.videos.length) return existing;
 
-      const { kind, query } = buildQueryParams(ch);
+      const { kind, query, categoryId } = buildQueryParams(ch);
       const params = new URLSearchParams({ kind, query });
+      if (categoryId) params.set("categoryId", categoryId);
       if (viewFilter.enabled) {
         params.set("viewMin", String(viewFilter.min));
         params.set("viewMax", String(viewFilter.max));
