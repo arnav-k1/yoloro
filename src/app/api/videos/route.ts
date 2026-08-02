@@ -63,9 +63,17 @@ export async function GET(req: NextRequest) {
   const viewMin = searchParams.has("viewMin") ? Number(searchParams.get("viewMin")) : null;
   const viewMax = searchParams.has("viewMax") ? Number(searchParams.get("viewMax")) : null;
   const includeShorts = searchParams.get("includeShorts") === "true";
-  const maxDurationSeconds = searchParams.has("maxDurationMinutes")
+  const rawMaxDurationSeconds = searchParams.has("maxDurationMinutes")
     ? Number(searchParams.get("maxDurationMinutes")) * 60
     : null;
+  // A max length at or below the Shorts cutoff combined with excluding Shorts leaves an
+  // effectively-empty window: "not a Short" requires >=180s, so a cap of exactly 180s only
+  // admits videos of precisely 180.000s, which is practically never. Drop the cap instead and
+  // keep the Shorts exclusion, since that's the harder rule of the two.
+  const maxDurationSeconds =
+    !includeShorts && rawMaxDurationSeconds !== null && rawMaxDurationSeconds <= SHORTS_MAX_SECONDS
+      ? null
+      : rawMaxDurationSeconds;
 
   const demo = !hasApiKey();
   let videos: VideoItem[] = [];
